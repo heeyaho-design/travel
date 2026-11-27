@@ -1,4 +1,5 @@
 function collectAllFestivals() {
+  const collectionStartedAt = new Date();
   const baseUrl =
     "https://www.mcst.go.kr/site/s_culture/festival/festivalList.jsp";
 
@@ -130,6 +131,11 @@ function collectAllFestivals() {
     sheet.getRange(2, 1, allFestivals.length, 6).setValues(allFestivals);
   }
 
+  PropertiesService.getScriptProperties().setProperty(
+    "lastFestivalCollectionAt",
+    collectionStartedAt.toISOString(),
+  );
+
   Logger.log("------------------------------");
   Logger.log("전체 수집 축제 수: " + allFestivals.length);
   Logger.log("===== 축제 수집 완료 =====");
@@ -196,7 +202,9 @@ function getFestivalData() {
   return {
     success: true,
     festivals: festivals,
-    updatedAt: new Date().toISOString(),
+    updatedAt: PropertiesService.getScriptProperties().getProperty(
+      "lastFestivalCollectionAt",
+    ),
   };
 }
 

@@ -215,17 +215,6 @@
         cursor: wait;
       }
 
-      .clear-date {
-        height: 44px;
-        padding: 0 12px;
-        border: 1px solid #dfe5ec;
-        border-radius: 8px;
-        color: #526071;
-        background: #fff;
-        font-size: 12px;
-        white-space: nowrap;
-      }
-
       /* 축제 목록 */
       .festival-section {
         margin-bottom: 48px;
@@ -347,16 +336,87 @@
         -webkit-line-clamp: 2;
       }
 
-      .image-link {
-        display: inline-block;
-        margin-top: 12px;
-        color: #315d86;
-        font-size: 12px;
-        text-decoration: none;
+      .festival-description.expanded {
+        display: block;
+        overflow: visible;
+        -webkit-line-clamp: unset;
       }
 
-      .image-link:hover {
+      .detail-button {
+        display: block;
+        margin-top: 12px;
+        padding: 0;
+        border: 0;
+        color: #315d86;
+        background: transparent;
+        font-size: 12px;
+      }
+
+      .detail-button:hover {
         text-decoration: underline;
+      }
+
+      .festival-detail-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow-y: auto;
+        padding: 20px;
+        background: rgba(15, 24, 34, 0.72);
+        backdrop-filter: blur(2px);
+      }
+
+      .festival-detail-backdrop[hidden] {
+        display: none;
+      }
+
+      .festival-detail-card {
+        position: relative;
+        width: min(440px, 100%);
+        max-height: calc(100vh - 40px);
+        margin: auto;
+        overflow-y: auto;
+        transform: none;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+
+      .festival-detail-card:hover {
+        transform: none;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+
+      .festival-detail-card .festival-image {
+        height: 190px;
+      }
+
+      .festival-detail-card-no-image .festival-content {
+        padding-top: 56px;
+      }
+
+      .festival-detail-close {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1;
+        display: grid;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        place-items: center;
+        border: 0;
+        border-radius: 50%;
+        color: #344255;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+        font-size: 25px;
+        line-height: 1;
+      }
+
+      .festival-detail-close:hover {
+        background: #fff;
       }
 
       .message {
@@ -583,9 +643,6 @@
         .date-input {
           max-width: none;
         }
-        .clear-date {
-          width: 100%;
-        }
         .refresh-button {
           grid-column: 1 / -1;
         }
@@ -671,12 +728,8 @@
             aria-label="축제 날짜 선택"
           />
 
-          <button class="clear-date" id="clearDateButton" type="button">
-            날짜 초기화
-          </button>
-
-          <button class="refresh-button" id="refreshButton" type="button">
-            새로고침
+          <button class="refresh-button" id="resetButton" type="button">
+            초기화
           </button>
         </div>
       </section>
@@ -744,6 +797,12 @@
       </section>
     </main>
 
+    <div
+      class="festival-detail-backdrop"
+      id="festivalDetailBackdrop"
+      hidden
+    ></div>
+
     <!-- 구독 확인창 -->
     <div class="confirm-backdrop" id="confirmBackdrop" hidden>
       <div
@@ -783,7 +842,7 @@
       const updatedAt = document.getElementById("updatedAt");
       const searchInput = document.getElementById("searchInput");
       const dateInput = document.getElementById("dateInput");
-      const refreshButton = document.getElementById("refreshButton");
+      const resetButton = document.getElementById("resetButton");
 
       const subscribeForm = document.getElementById("subscribeForm");
       const subscriberName = document.getElementById("subscriberName");
@@ -795,9 +854,14 @@
       const confirmText = document.getElementById("confirmText");
       const confirmYes = document.getElementById("confirmYes");
       const confirmNo = document.getElementById("confirmNo");
+      const festivalDetailBackdrop = document.getElementById(
+        "festivalDetailBackdrop",
+      );
 
       let festivals = [];
       let pendingSubscriber = null;
+      let detailTrigger = null;
+      let previousBodyOverflow = "";
 
       function localDateString(date) {
         const year = date.getFullYear();
@@ -929,8 +993,55 @@
         list.appendChild(row);
       }
 
+      function openFestivalDetails(festival, trigger) {
+        detailTrigger = trigger;
+        previousBodyOverflow = document.body.style.overflow;
+        trigger.setAttribute("aria-expanded", "true");
+
+        const card = createFestivalCard(festival, true);
+        card.classList.add("festival-detail-card");
+        card.tabIndex = -1;
+        card.setAttribute("role", "dialog");
+        card.setAttribute("aria-modal", "true");
+        card.setAttribute("aria-labelledby", "festivalDetailTitle");
+        card.querySelector(".festival-title").id = "festivalDetailTitle";
+
+        const closeButton = document.createElement("button");
+        closeButton.className = "festival-detail-close";
+        closeButton.type = "button";
+        closeButton.setAttribute("aria-label", "상세 정보 닫기");
+        closeButton.textContent = "×";
+        closeButton.addEventListener("click", closeFestivalDetails);
+        card.prepend(closeButton);
+
+        if (!card.querySelector(".festival-image")) {
+          card.classList.add("festival-detail-card-no-image");
+        }
+
+        festivalDetailBackdrop.textContent = "";
+        festivalDetailBackdrop.appendChild(card);
+        festivalDetailBackdrop.hidden = false;
+        document.body.style.overflow = "hidden";
+        closeButton.focus();
+      }
+
+      function closeFestivalDetails() {
+        if (festivalDetailBackdrop.hidden) return;
+
+        festivalDetailBackdrop.hidden = true;
+        festivalDetailBackdrop.textContent = "";
+        document.body.style.overflow = previousBodyOverflow;
+
+        if (detailTrigger && detailTrigger.isConnected) {
+          detailTrigger.setAttribute("aria-expanded", "false");
+          detailTrigger.focus();
+        }
+
+        detailTrigger = null;
+      }
+
       // 축제 카드 생성
-      function createFestivalCard(festival) {
+      function createFestivalCard(festival, showFullDescription) {
         const card = document.createElement("article");
         card.className = "festival-card";
 
@@ -943,6 +1054,9 @@
 
           image.onerror = function () {
             image.remove();
+            if (showFullDescription) {
+              card.classList.add("festival-detail-card-no-image");
+            }
           };
 
           card.appendChild(image);
@@ -967,26 +1081,47 @@
 
         content.append(period, title, details);
 
-        if (festival.description) {
-          const description = document.createElement("p");
-          description.className = "festival-description";
-          description.textContent = festival.description;
-          content.appendChild(description);
+        const description = document.createElement("p");
+        description.className = "festival-description";
+        description.textContent =
+          festival.description || "등록된 설명이 없습니다.";
+        if (showFullDescription) {
+          description.classList.add("expanded");
         }
+        content.appendChild(description);
 
-        if (/^https?:\/\//i.test(festival.imageUrl || "")) {
-          const imageLink = document.createElement("a");
-          imageLink.className = "image-link";
-          imageLink.href = festival.imageUrl;
-          imageLink.target = "_blank";
-          imageLink.rel = "noopener noreferrer";
-          imageLink.textContent = "축제 이미지 보기";
-          content.appendChild(imageLink);
-        }
+        const detailButton = document.createElement("button");
+        detailButton.className = "detail-button";
+        detailButton.type = "button";
+        detailButton.textContent = showFullDescription ? "접기" : "자세히";
+        detailButton.setAttribute(
+          "aria-expanded",
+          String(Boolean(showFullDescription)),
+        );
+        detailButton.addEventListener("click", () => {
+          if (showFullDescription) {
+            closeFestivalDetails();
+          } else {
+            openFestivalDetails(festival, detailButton);
+          }
+        });
+        content.appendChild(detailButton);
 
         card.appendChild(content);
         return card;
       }
+
+      festivalDetailBackdrop.addEventListener("click", (event) => {
+        if (event.target === festivalDetailBackdrop) {
+          closeFestivalDetails();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !festivalDetailBackdrop.hidden) {
+          closeFestivalDetails();
+        }
+      });
 
       function showList(listElement, messageElement, items, emptyText) {
         listElement.textContent = "";
@@ -1089,12 +1224,12 @@
           return;
         }
 
-        refreshButton.disabled = true;
+        resetButton.disabled = true;
         resultCount.textContent = "축제 정보를 불러오는 중입니다.";
 
         google.script.run
           .withSuccessHandler((data) => {
-            refreshButton.disabled = false;
+            resetButton.disabled = false;
 
             if (!data || !data.success) {
               festivals = [];
@@ -1113,13 +1248,16 @@
             festivals = data.festivals || [];
 
             updatedAt.textContent = data.updatedAt
-              ? "업데이트 " + new Date(data.updatedAt).toLocaleString("ko-KR")
-              : "";
+              ? "업데이트 " +
+                new Date(data.updatedAt).toLocaleString("ko-KR", {
+                  timeZone: "Asia/Seoul",
+                })
+              : "업데이트 기록 없음";
 
             renderFestivals();
           })
           .withFailureHandler((error) => {
-            refreshButton.disabled = false;
+            resetButton.disabled = false;
             resultCount.textContent = "축제 정보를 불러오지 못했습니다.";
 
             showList(
@@ -1133,13 +1271,12 @@
           .getFestivalData();
       }
 
-      // 날짜 초기화
-      document
-        .getElementById("clearDateButton")
-        .addEventListener("click", () => {
-          dateInput.value = "";
-          renderFestivals();
-        });
+      resetButton.addEventListener("click", () => {
+        dateInput.value = "";
+        searchInput.value = "";
+        renderFestivals();
+        loadFestivals();
+      });
 
       searchInput.addEventListener("input", renderFestivals);
 
@@ -1150,8 +1287,6 @@
 
         renderFestivals();
       });
-
-      refreshButton.addEventListener("click", loadFestivals);
 
       // 구독 확인창 열기
       subscribeForm.addEventListener("submit", (event) => {
